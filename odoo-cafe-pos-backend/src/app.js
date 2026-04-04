@@ -1,34 +1,30 @@
+// src/app.js
 const express = require('express');
 const cors = require('cors');
-const morgan = require('morgan');
 const helmet = require('helmet');
+const morgan = require('morgan');
+
+const routes = require('./routes');
+const { errorHandler, notFound } = require('./middlewares/error.middleware');
+
 const app = express();
+
+// ── Security & Utility Middleware ─────────────────────────────
+app.use(helmet());
 app.use(cors({
   origin: process.env.CORS_ORIGIN || '*',
-  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
 }));
-app.use(express.json());
-app.use(morgan('dev'));
-app.use(helmet());
-app.get('/api/health', (req, res) => {
-  res.json({
-    status: 'OK',
-    message: 'Backend running',
-  });
-});
-const routes = require('./routes');
+app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
+app.use(express.json({ limit: '2mb' }));
+app.use(express.urlencoded({ extended: true }));
+
+// ── API Routes ────────────────────────────────────────────────
 app.use('/api', routes);
-app.use((req, res) => {
-  res.status(404).json({
-    success: false,
-    message: 'Route not found',
-  });
-});
-app.use((err, req, res, next) => {
-  console.error('[Error]', err);
-  res.status(err.status || 500).json({
-    success: false,
-    message: err.message || 'Internal Server Error',
-  });
-});
+
+// ── Error Handling ────────────────────────────────────────────
+app.use(notFound);
+app.use(errorHandler);
+
 module.exports = app;

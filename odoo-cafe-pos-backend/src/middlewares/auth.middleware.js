@@ -8,15 +8,19 @@ const authenticate = async (req, res, next) => {
     if (!authHeader?.startsWith('Bearer ')) {
       return res.status(401).json({ success: false, message: ERRORS.UNAUTHORIZED });
     }
+
     const token = authHeader.split(' ')[1];
     const decoded = jwt.verify(token, jwtSecret);
+
     const user = await prisma.user.findUnique({
       where: { id: decoded.userId },
       select: { id: true, name: true, email: true, role: true },
     });
+
     if (!user) {
       return res.status(401).json({ success: false, message: ERRORS.UNAUTHORIZED });
     }
+
     req.user = user;
     next();
   } catch {
@@ -34,4 +38,5 @@ const authorize = (...roles) => {
     next();
   };
 };
+
 module.exports = { authenticate, authorize };
