@@ -1,62 +1,51 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 
-// Auth
+// Pages
+import Landing from "./pages/Landing";
 import Login from "./pages/auth/Login";
 import Signup from "./pages/auth/Signup";
-
-// Backend
-import Dashboard from "./pages/backend/Dashboard";
-import Products from "./pages/backend/Products";
-import PaymentMethods from "./pages/backend/PaymentMethods";
-import Floors from "./pages/backend/Floors";
-import Terminal from "./pages/backend/Terminal";
-
-// POS
+import SelectTerminal from "./pages/pos/SelectTerminal";
 import FloorView from "./pages/pos/FloorView";
 import OrderScreen from "./pages/pos/OrderScreen";
 import Payment from "./pages/pos/Payment";
 import UPIPayment from "./pages/pos/UPIPayment";
 import PaymentSuccess from "./pages/pos/PaymentSuccess";
-
-// Kitchen & Customer
+import Dashboard from "./pages/backend/Dashboard";
 import KitchenDisplay from "./pages/kitchen/KitchenDisplay";
-import CustomerDisplay from "./pages/customer/CustomerDisplay";
 
-// Booking
-import Booking from "./pages/booking/Booking";
+// Components
+import AuthGuard from "./components/Layout/AuthGuard";
+import RoleGuard from "./components/Layout/RoleGuard";
 
 export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* Default redirect */}
-        <Route path="/" element={<Navigate to="/auth/login" replace />} />
-
-        {/* Auth */}
-        <Route path="/auth/login" element={<Login />} />
-        <Route path="/auth/signup" element={<Signup />} />
-
-        {/* Backend / Admin */}
-        <Route path="/backend/dashboard" element={<Dashboard />} />
-        <Route path="/backend/products" element={<Products />} />
-        <Route path="/backend/payment-methods" element={<PaymentMethods />} />
-        <Route path="/backend/floors" element={<Floors />} />
-        <Route path="/backend/terminal" element={<Terminal />} />
-        <Route path="/backend/booking" element={<Booking />} />
-
-        {/* POS Flow */}
-        <Route path="/pos/floor" element={<FloorView />} />
-        <Route path="/pos/order/:tableId" element={<OrderScreen />} />
-        <Route path="/pos/payment/:orderId" element={<Payment />} />
-        <Route path="/pos/upi/:orderId" element={<UPIPayment />} />
-        <Route path="/pos/success" element={<PaymentSuccess />} />
-
-        {/* Displays */}
+        {/* Public */}
+        <Route path="/" element={<Landing />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/signup" element={<Signup />} />
         <Route path="/kitchen" element={<KitchenDisplay />} />
-        <Route path="/display" element={<CustomerDisplay />} />
 
-        {/* 404 fallback */}
-        <Route path="*" element={<Navigate to="/auth/login" replace />} />
+        {/* Protected — POS Flow */}
+        <Route path="/pos/select-terminal" element={<AuthGuard><SelectTerminal /></AuthGuard>} />
+        <Route path="/pos/floor" element={<AuthGuard><FloorView /></AuthGuard>} />
+        <Route path="/pos/order/:tableId" element={<AuthGuard><OrderScreen /></AuthGuard>} />
+        <Route path="/pos/payment/:orderId" element={<AuthGuard><Payment /></AuthGuard>} />
+        <Route path="/pos/upi/:orderId" element={<AuthGuard><UPIPayment /></AuthGuard>} />
+        <Route path="/pos/success" element={<AuthGuard><PaymentSuccess /></AuthGuard>} />
+
+        {/* Protected — Admin / Manager only */}
+        <Route path="/dashboard" element={
+          <AuthGuard>
+            <RoleGuard roles={["ADMIN", "MANAGER"]}>
+              <Dashboard />
+            </RoleGuard>
+          </AuthGuard>
+        } />
+
+        {/* Fallback */}
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
   );

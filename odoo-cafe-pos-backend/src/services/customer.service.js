@@ -27,7 +27,7 @@ const createCustomer = async ({ name, email, phone, address }) => {
 /**
  * Search / list customers
  */
-const listCustomers = async ({ search, limit = 30, offset = 0 }) => {
+const listCustomers = async ({ search, limit = 10, offset = 0 }) => {
   const where = search
     ? {
         OR: [

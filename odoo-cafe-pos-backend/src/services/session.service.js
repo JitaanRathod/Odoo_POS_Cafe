@@ -129,7 +129,7 @@ const getActiveSessions = async () => {
 /**
  * Get session history (closed sessions) with optional filters
  */
-const getSessionHistory = async ({ terminalId, from, to, limit = 20, offset = 0 }) => {
+const getSessionHistory = async ({ terminalId, from, to, limit = 10, offset = 0 }) => {
   const where = { closedAt: { not: null } };
   if (terminalId) where.terminalId = terminalId;
   if (from || to) {

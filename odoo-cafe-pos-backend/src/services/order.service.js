@@ -145,6 +145,14 @@ const createOrder = async (data, cashierId) => {
     return newOrder;
   });
 
+  // Notify floor map of status change
+  if (orderType === ORDER_TYPE.DINE_IN && finalTableId) {
+    socketUtil.emit(SOCKET_EVENTS.TABLE_STATUS_CHANGE, {
+      tableId: finalTableId,
+      status: TABLE_STATUS.OCCUPIED,
+    });
+  }
+
   return order;
 };
 
@@ -340,7 +348,7 @@ const getActiveOrderByTable = async (tableId) => {
 /**
  * List orders with optional filters
  */
-const listOrders = async ({ branchId, sessionId, status, orderType, from, to, limit = 50, offset = 0 }) => {
+const listOrders = async ({ branchId, sessionId, status, orderType, from, to, limit = 10, offset = 0 }) => {
   const where = {};
   if (branchId) where.branchId = branchId;
   if (sessionId) where.sessionId = sessionId;

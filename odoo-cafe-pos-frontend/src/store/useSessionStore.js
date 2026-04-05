@@ -4,27 +4,30 @@ import { persist } from "zustand/middleware";
 export const useSessionStore = create(
   persist(
     (set) => ({
-      sessionId: null,
-      cashier: null,
       token: null,
-      isOpen: false,
+      user: null,        // { id, name, email, role }
+      terminalId: null,
+      sessionId: null,
+      branchId: null,
 
-      openSession: ({ sessionId, cashier, token }) =>
-        set({ sessionId, cashier, token, isOpen: true }),
+      setAuth: ({ token, user }) => set({ token, user }),
 
-      closeSession: () =>
-        set({ sessionId: null, cashier: null, isOpen: false }),
+      openPosSession: ({ sessionId, terminalId, branchId }) =>
+        set({ sessionId, terminalId, branchId }),
 
-      setToken: (token) => set({ token }),
+      closePosSession: () => set({ sessionId: null }),
 
       clearSession: () =>
-        set({ sessionId: null, cashier: null, token: null, isOpen: false }),
+        set({ token: null, user: null, terminalId: null, sessionId: null, branchId: null }),
     }),
     {
       name: "pos-session",
       partialize: (state) => ({
         token: state.token,
-        cashier: state.cashier,
+        user: state.user,
+        terminalId: state.terminalId,
+        sessionId: state.sessionId,
+        branchId: state.branchId,
       }),
     }
   )

@@ -223,7 +223,7 @@ const getReceipt = async (orderId) => {
 /**
  * List payments with filters
  */
-const listPayments = async ({ method, status, from, to, limit = 50, offset = 0 }) => {
+const listPayments = async ({ method, status, from, to, limit = 10, offset = 0 }) => {
   const where = {};
   if (method && method !== 'ALL') where.method = method;
   if (status) where.status = status;

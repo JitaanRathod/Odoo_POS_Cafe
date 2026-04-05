@@ -61,7 +61,7 @@ const start = async () => {
   try {
     // Verify DB connection
     await prisma.$connect();
-    console.log('[DB] PostgreSQL connected via Prisma');
+    console.log('[DB] MySQL connected via Prisma');
 
     httpServer.listen(port, () => {
       console.log(`\n🚀  Server running in ${nodeEnv} mode on port ${port}`);

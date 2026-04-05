@@ -2,59 +2,31 @@ import { create } from "zustand";
 
 export const useCartStore = create((set, get) => ({
   items: [],
-  activeTableId: null,
-
-  setActiveTable: (tableId) => set({ activeTableId: tableId }),
 
   addItem: (product) => {
-    const { items } = get();
-    const existing = items.find((i) => i.id === product.id);
+    const items = get().items;
+    const existing = items.find((i) => i.productId === product.id);
     if (existing) {
-      set({
-        items: items.map((i) =>
-          i.id === product.id ? { ...i, qty: i.qty + 1 } : i
-        ),
-      });
+      set({ items: items.map((i) => i.productId === product.id ? { ...i, quantity: i.quantity + 1 } : i) });
     } else {
-      set({
-        items: [
-          ...items,
-          {
-            id: product.id,
-            name: product.name,
-            price: product.price,
-            category: product.category,
-            qty: 1,
-          },
-        ],
-      });
+      set({ items: [...items, { productId: product.id, productName: product.name, unitPrice: product.price, taxRate: product.taxRate, quantity: 1 }] });
     }
   },
 
-  removeItem: (productId) =>
-    set((state) => ({
-      items: state.items.filter((i) => i.id !== productId),
-    })),
+  removeItem: (productId) => {
+    set({ items: get().items.filter((i) => i.productId !== productId) });
+  },
 
   updateQty: (productId, qty) => {
-    if (qty <= 0) {
-      get().removeItem(productId);
-      return;
-    }
-    set((state) => ({
-      items: state.items.map((i) =>
-        i.id === productId ? { ...i, qty } : i
-      ),
-    }));
+    if (qty <= 0) return get().removeItem(productId);
+    set({ items: get().items.map((i) => i.productId === productId ? { ...i, quantity: qty } : i) });
   },
 
-  clearCart: () => set({ items: [], activeTableId: null }),
+  clearCart: () => set({ items: [] }),
 
-  getTotal: () => {
-    return get().items.reduce((sum, item) => sum + item.price * item.qty, 0);
-  },
+  getSubtotal: () => get().items.reduce((sum, i) => sum + i.unitPrice * i.quantity, 0),
 
-  getItemCount: () => {
-    return get().items.reduce((sum, item) => sum + item.qty, 0);
-  },
+  getTax: () => get().items.reduce((sum, i) => sum + (i.unitPrice * i.quantity * (i.taxRate || 0)) / 100, 0),
+
+  getTotal: () => get().getSubtotal() + get().getTax(),
 }));

@@ -1,50 +1,51 @@
-import { useNavigate } from "react-router-dom";
-import { CheckCircle, Home, RotateCcw } from "lucide-react";
-import Button from "../../components/ui/Button";
+import { useSearchParams, Link } from "react-router-dom";
+import { CheckCircle, Printer, Home, ArrowRight } from "lucide-react";
+import Button from "../../components/UI/Button";
 
 export default function PaymentSuccess() {
-  const navigate = useNavigate();
+  const [params] = useSearchParams();
+  const orderId = params.get("orderId") || "";
+  const method = params.get("method") || "CASH";
+  const amount = params.get("amount") || "0";
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
-      <div className="w-full max-w-sm bg-white rounded-2xl shadow-lg p-8 flex flex-col items-center text-center gap-6">
+    <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-white to-brand-50 flex items-center justify-center px-4">
+      <div className="w-full max-w-sm text-center animate-slideUp">
         {/* Success Icon */}
-        <div className="relative">
-          <div className="w-24 h-24 rounded-full bg-green-100 flex items-center justify-center animate-bounce">
-            <CheckCircle size={52} className="text-green-500" />
+        <div className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-6">
+          <CheckCircle size={40} className="text-emerald-500" />
+        </div>
+
+        <h1 className="text-2xl font-bold text-gray-900 mb-1">Payment Successful!</h1>
+        <p className="text-sm text-gray-500 mb-6">Transaction completed successfully</p>
+
+        {/* Receipt Card */}
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-lg shadow-gray-100 p-6 mb-6 text-left">
+          <div className="flex justify-between text-sm mb-3">
+            <span className="text-gray-500">Order ID</span>
+            <span className="font-mono font-semibold text-gray-900">#{orderId.slice(0, 8).toUpperCase()}</span>
+          </div>
+          <div className="flex justify-between text-sm mb-3">
+            <span className="text-gray-500">Method</span>
+            <span className="font-semibold text-gray-900">{method}</span>
+          </div>
+          <div className="flex justify-between text-sm pt-3 border-t border-gray-100">
+            <span className="text-gray-500">Amount Paid</span>
+            <span className="text-lg font-bold text-emerald-600">₹{Number(amount).toFixed(2)}</span>
           </div>
         </div>
 
-        <div>
-          <h1 className="text-2xl font-extrabold text-gray-900">Payment Successful!</h1>
-          <p className="text-sm text-gray-500 mt-2">
-            The order has been paid and the table is now free.
-          </p>
-        </div>
-
-        {/* Receipt placeholder */}
-        <div className="w-full bg-gray-50 rounded-xl p-4 border border-dashed border-gray-300 text-sm text-gray-600 space-y-1">
-          <div className="flex justify-between">
-            <span>Status</span>
-            <span className="font-semibold text-green-600">PAID</span>
-          </div>
-          <div className="flex justify-between">
-            <span>Table</span>
-            <span className="font-medium text-gray-800">Freed</span>
-          </div>
-          <div className="flex justify-between">
-            <span>Receipt</span>
-            <span className="font-medium text-gray-800">Printed / Sent</span>
-          </div>
-        </div>
-
-        <div className="flex gap-3 w-full">
-          <Button variant="outline" className="flex-1" onClick={() => navigate("/pos/floor")}>
-            <RotateCcw size={15} /> New Order
-          </Button>
-          <Button className="flex-1" onClick={() => navigate("/backend/dashboard")}>
-            <Home size={15} /> Dashboard
-          </Button>
+        <div className="flex flex-col gap-3">
+          <Link to="/pos/floor">
+            <Button className="w-full" size="lg">
+              <ArrowRight size={16} /> New Order
+            </Button>
+          </Link>
+          <Link to="/dashboard">
+            <Button variant="outline" className="w-full">
+              <Home size={16} /> Dashboard
+            </Button>
+          </Link>
         </div>
       </div>
     </div>

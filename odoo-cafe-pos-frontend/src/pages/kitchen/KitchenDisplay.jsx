@@ -1,115 +1,151 @@
-import { useEffect } from "react";
-import { ChefHat } from "lucide-react";
-import dayjs from "dayjs";
+import { useState, useEffect, useCallback } from "react";
+import { ChefHat, Clock, CheckCircle, Coffee, RefreshCw } from "lucide-react";
+import toast from "react-hot-toast";
+import { orderAPI } from "../../api/order.api";
 import { socket } from "../../lib/socket";
-import { useKitchenStore } from "../../store/useKitchenStore";
+import Badge from "../../components/UI/Badge";
+import Spinner from "../../components/UI/Spinner";
+import Button from "../../components/UI/Button";
 
-const STAGES = [
-  { key: "PENDING", label: "🔴 To Cook", bg: "bg-red-50", border: "border-red-200" },
-  { key: "PREPARING", label: "🟡 Preparing", bg: "bg-yellow-50", border: "border-yellow-200" },
-  { key: "DONE", label: "🟢 Completed", bg: "bg-green-50", border: "border-green-200" },
-];
-
-const NEXT_STAGE = { PENDING: "PREPARING", PREPARING: "DONE" };
+const STATUS_COLOR = {
+  CREATED: "orange",
+  IN_PROGRESS: "blue",
+  READY: "green",
+};
 
 export default function KitchenDisplay() {
-  const { orders, addOrder, advanceStage, toggleItemDone } = useKitchenStore();
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
 
+  const loadOrders = useCallback(async () => {
+    try {
+      const res = await orderAPI.kitchenOrders();
+      setOrders(res.orders || []);
+    } catch {
+      toast.error("Failed to load kitchen orders");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { loadOrders(); }, [loadOrders]);
+
+  // Socket real-time
   useEffect(() => {
-    socket.emit("join", "kitchen");
-
-    socket.on("order:new", (order) => {
-      addOrder(order);
-    });
-
+    const handler = () => loadOrders();
+    socket.on("order:new", handler);
+    socket.on("order:updated", handler);
+    socket.on("kitchen:new-order", handler);
     return () => {
-      socket.off("order:new");
+      socket.off("order:new", handler);
+      socket.off("order:updated", handler);
+      socket.off("kitchen:new-order", handler);
     };
-  }, [addOrder]);
+  }, [loadOrders]);
 
-  const handleAdvance = (orderId, currentStage) => {
-    const next = NEXT_STAGE[currentStage];
-    if (!next) return;
-    advanceStage(orderId, next);
-    socket.emit("order:stage", { orderId, stage: next });
+  // Auto-refresh every 15s
+  useEffect(() => {
+    const interval = setInterval(loadOrders, 15000);
+    return () => clearInterval(interval);
+  }, [loadOrders]);
+
+  const handleStatusChange = async (orderId, newStatus) => {
+    try {
+      await orderAPI.updateStatus(orderId, newStatus);
+      toast.success(`Order marked as ${newStatus}`);
+      loadOrders();
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Failed to update");
+    }
   };
 
-  const ordersByStage = (stage) =>
-    orders.filter((o) => o.kitchen_status === stage);
+  const activeOrders = orders.filter((o) => ["CREATED", "IN_PROGRESS", "READY"].includes(o.status));
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white flex flex-col">
+    <div className="min-h-screen bg-gray-900 text-white">
       {/* Header */}
-      <div className="flex items-center gap-3 px-6 py-4 bg-gray-800 border-b border-gray-700">
-        <ChefHat size={24} className="text-orange-400" />
-        <h1 className="text-lg font-bold">Kitchen Display</h1>
-        <span className="ml-auto text-sm text-gray-400">{dayjs().format("hh:mm A · DD MMM")}</span>
-      </div>
-
-      {/* Kanban */}
-      <div className="flex-1 grid grid-cols-3 gap-4 p-5 overflow-hidden">
-        {STAGES.map(({ key, label, bg, border }) => (
-          <div key={key} className="flex flex-col gap-3">
-            {/* Column Header */}
-            <div className={`text-center py-2 rounded-xl font-semibold text-sm ${bg} ${border} border text-gray-800`}>
-              {label} ({ordersByStage(key).length})
-            </div>
-
-            {/* Ticket Cards */}
-            <div className="flex flex-col gap-3 overflow-y-auto">
-              {ordersByStage(key).length === 0 ? (
-                <div className="text-center text-gray-600 text-sm py-8">No tickets</div>
-              ) : (
-                ordersByStage(key).map((order) => (
-                  <div
-                    key={order.id}
-                    className={`bg-gray-800 border ${border} rounded-xl p-4 flex flex-col gap-3`}
-                  >
-                    {/* Ticket Header */}
-                    <div className="flex justify-between items-center">
-                      <span className="font-bold text-orange-400">#{order.order_number}</span>
-                      <span className="text-xs text-gray-400">
-                        Table {order.table_number} · {dayjs(order.created_at).format("hh:mm A")}
-                      </span>
-                    </div>
-
-                    {/* Items */}
-                    <div className="flex flex-col gap-1.5">
-                      {order.items?.map((item) => (
-                        <button
-                          key={item.id}
-                          onClick={() => toggleItemDone(order.id, item.id)}
-                          className={`flex items-center gap-2 text-sm px-2 py-1 rounded-lg transition-colors text-left ${
-                            item.done
-                              ? "text-gray-500 line-through bg-gray-700/50"
-                              : "text-white hover:bg-gray-700"
-                          }`}
-                        >
-                          <span className="w-5 h-5 rounded border border-gray-600 flex items-center justify-center text-xs">
-                            {item.done ? "✓" : ""}
-                          </span>
-                          <span className="font-medium">{item.qty}x</span>
-                          <span>{item.name}</span>
-                        </button>
-                      ))}
-                    </div>
-
-                    {/* Advance Button */}
-                    {NEXT_STAGE[key] && (
-                      <button
-                        onClick={() => handleAdvance(order.id, key)}
-                        className="w-full py-1.5 text-sm font-semibold bg-orange-500 hover:bg-orange-600 rounded-lg transition-colors"
-                      >
-                        {key === "PENDING" ? "Start Preparing →" : "Mark Complete ✓"}
-                      </button>
-                    )}
-                  </div>
-                ))
-              )}
-            </div>
+      <div className="bg-gray-800 border-b border-gray-700 px-6 py-4 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-amber-500 rounded-xl flex items-center justify-center">
+            <ChefHat size={22} className="text-white" />
           </div>
-        ))}
+          <div>
+            <h1 className="text-lg font-bold">Kitchen Display</h1>
+            <p className="text-xs text-gray-400">{activeOrders.length} active order{activeOrders.length !== 1 ? "s" : ""}</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-3">
+          <Button variant="ghost" onClick={loadOrders} className="text-gray-300 hover:text-white">
+            <RefreshCw size={16} /> Refresh
+          </Button>
+          <a href="/" className="text-sm text-gray-400 hover:text-white flex items-center gap-1"><Coffee size={14} /> Back to POS</a>
+        </div>
       </div>
+
+      {loading ? (
+        <div className="flex justify-center py-20"><Spinner size="lg" /></div>
+      ) : activeOrders.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-32 text-gray-500">
+          <ChefHat size={48} className="mb-4 opacity-30" />
+          <p className="text-lg font-medium">No active orders</p>
+          <p className="text-sm text-gray-600 mt-1">Waiting for new orders...</p>
+        </div>
+      ) : (
+        <div className="p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          {activeOrders.map((order) => (
+            <div key={order.id} className={`bg-gray-800 rounded-2xl border overflow-hidden transition-all animate-fadeIn ${
+              order.status === "CREATED" ? "border-amber-500/50" : order.status === "IN_PROGRESS" ? "border-blue-500/50" : "border-emerald-500/50"
+            }`}>
+              {/* Order Header */}
+              <div className="px-4 py-3 border-b border-gray-700 flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-bold">#{order.id?.slice(0, 6).toUpperCase()}</p>
+                  <p className="text-xs text-gray-400">{order.orderType}</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Badge color={STATUS_COLOR[order.status]}>{order.status}</Badge>
+                  <div className="flex items-center gap-1 text-xs text-gray-400">
+                    <Clock size={11} />
+                    {new Date(order.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                  </div>
+                </div>
+              </div>
+
+              {/* Items */}
+              <div className="px-4 py-3 space-y-2">
+                {order.orderItems?.map((item) => (
+                  <div key={item.id} className="flex items-center gap-2">
+                    <span className="text-sm font-bold text-amber-400 w-6">{item.quantity}×</span>
+                    <span className="text-sm text-gray-200 flex-1">{item.productName}</span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Actions */}
+              <div className="px-4 py-3 border-t border-gray-700 flex gap-2">
+                {order.status === "CREATED" && (
+                  <button onClick={() => handleStatusChange(order.id, "IN_PROGRESS")}
+                    className="flex-1 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg transition-colors flex items-center justify-center gap-1">
+                    <Clock size={12} /> Start Preparing
+                  </button>
+                )}
+                {order.status === "IN_PROGRESS" && (
+                  <button onClick={() => handleStatusChange(order.id, "READY")}
+                    className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-lg transition-colors flex items-center justify-center gap-1">
+                    <CheckCircle size={12} /> Mark Ready
+                  </button>
+                )}
+                {order.status === "READY" && (
+                  <button onClick={() => handleStatusChange(order.id, "COMPLETED")}
+                    className="flex-1 py-2 bg-gray-600 hover:bg-gray-500 text-white text-xs font-semibold rounded-lg transition-colors flex items-center justify-center gap-1">
+                    <CheckCircle size={12} /> Served
+                  </button>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

@@ -7,6 +7,8 @@ const paymentRoutes = require('./payment.routes');
 const paymentSettingsRoutes = require('./payment-settings.routes');
 const customerRoutes = require('./customer.routes');
 const reportRoutes = require('./report.routes');
+const productRoutes = require('./product.routes');
+const floorRoutes = require('./floor.routes');
 router.use('/auth', authRoutes);
 router.use('/terminals', terminalRoutes);
 router.use('/sessions', sessionRoutes);
@@ -15,6 +17,8 @@ router.use('/payments', paymentRoutes);
 router.use('/payment-settings', paymentSettingsRoutes);
 router.use('/customers', customerRoutes);
 router.use('/reports', reportRoutes);
+router.use('/products', productRoutes);
+router.use('/floors', floorRoutes);
 router.get('/health', (_req, res) => {
   res.json({
     success: true,

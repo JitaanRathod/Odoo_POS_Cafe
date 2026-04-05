@@ -1,150 +1,189 @@
-import { useState } from "react";
-import {
-  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
-} from "recharts";
-import { Download, FileText } from "lucide-react";
-import { useReports } from "../../hooks/useReports";
-import PageWrapper from "../../components/layout/PageWrapper";
-import MetricCard from "../../components/ui/MetricCard";
-import Table from "../../components/ui/Table";
-import Badge from "../../components/ui/Badge";
-import Button from "../../components/ui/Button";
-import Spinner from "../../components/ui/Spinner";
+import { useState, useEffect, useCallback } from "react";
+import { useNavigate, Link } from "react-router-dom";
+import { BarChart3, DollarSign, ShoppingCart, TrendingUp, Coffee, LogOut, Monitor, ChefHat, Users, RefreshCw } from "lucide-react";
+import toast from "react-hot-toast";
 import { reportAPI } from "../../api/report.api";
-import { DollarSign, ShoppingBag, Users, TrendingUp } from "lucide-react";
-import dayjs from "dayjs";
-
-const PERIODS = ["today", "week", "month"];
+import { useSessionStore } from "../../store/useSessionStore";
+import { socket } from "../../lib/socket";
+import Card from "../../components/UI/Card";
+import Spinner from "../../components/UI/Spinner";
+import Badge from "../../components/UI/Badge";
 
 export default function Dashboard() {
-  const [period, setPeriod] = useState("today");
-  const { data, isLoading } = useReports({ period });
+  const navigate = useNavigate();
+  const { user, clearSession } = useSessionStore();
+  const [stats, setStats] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState(null);
 
-  const orderColumns = [
-    { key: "order_number", label: "#", width: 60 },
-    { key: "table", label: "Table" },
-    {
-      key: "status",
-      label: "Status",
-      render: (v) => (
-        <Badge
-          label={v}
-          variant={v === "PAID" ? "success" : v === "OPEN" ? "info" : "default"}
-        />
-      ),
-    },
-    {
-      key: "method",
-      label: "Payment",
-      render: (v) => <span className="capitalize text-sm text-gray-600">{v?.toLowerCase()}</span>,
-    },
-    {
-      key: "amount",
-      label: "Amount",
-      render: (v) => <span className="font-semibold text-gray-800">₹{v}</span>,
-    },
-    {
-      key: "created_at",
-      label: "Time",
-      render: (v) => <span className="text-gray-500 text-xs">{dayjs(v).format("hh:mm A")}</span>,
-    },
-  ];
+  const fetchStats = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
+    else setRefreshing(true);
+    try {
+      const r = await reportAPI.dashboard();
+      setStats(r.dashboard || r);
+      setLastUpdated(new Date());
+    } catch {
+      if (!silent) toast.error("Failed to load dashboard");
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
 
-  const handleExport = async (type) => {
-    const url = await reportAPI.export(type, { period });
-    window.open(url, "_blank");
-  };
+  // Initial load
+  useEffect(() => {
+    fetchStats();
+  }, [fetchStats]);
+
+  // Socket: re-fetch whenever a payment is completed
+  useEffect(() => {
+    const handlePaymentDone = () => fetchStats(true);
+    socket.on("payment:completed", handlePaymentDone);
+    socket.on("order:paid", handlePaymentDone);
+    return () => {
+      socket.off("payment:completed", handlePaymentDone);
+      socket.off("order:paid", handlePaymentDone);
+    };
+  }, [fetchStats]);
+
+  // Polling: refresh every 30 seconds as a safety net
+  useEffect(() => {
+    const interval = setInterval(() => fetchStats(true), 30_000);
+    return () => clearInterval(interval);
+  }, [fetchStats]);
+
+  const metrics = stats ? [
+    { label: "Today's Revenue", value: `₹${Number(stats.todayRevenue || 0).toLocaleString()}`, icon: DollarSign, color: "text-emerald-600 bg-emerald-50" },
+    { label: "Total Orders", value: stats.todayOrders || 0, icon: ShoppingCart, color: "text-brand-600 bg-brand-50" },
+    { label: "Avg. Order Value", value: `₹${Number(stats.averageOrderValue || 0).toFixed(0)}`, icon: TrendingUp, color: "text-blue-600 bg-blue-50" },
+    { label: "Active Sessions", value: stats.activeSessions || 0, icon: Monitor, color: "text-purple-600 bg-purple-50" },
+  ] : [];
 
   return (
-    <PageWrapper title="Sales Dashboard">
-      {/* Period Filter */}
-      <div className="flex items-center gap-2 mb-6">
-        {PERIODS.map((p) => (
+    <div className="min-h-screen bg-gray-50">
+      {/* Nav */}
+      <div className="bg-white border-b border-gray-100 px-6 py-3 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 bg-brand-500 rounded-lg flex items-center justify-center"><Coffee size={16} className="text-white" /></div>
+          <span className="font-bold text-gray-900">Dashboard</span>
+          {/* Live indicator */}
+          <span className="flex items-center gap-1 ml-2 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600 text-[10px] font-semibold">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            LIVE
+          </span>
+        </div>
+        <div className="flex items-center gap-3">
+          {/* Manual refresh */}
           <button
-            key={p}
-            onClick={() => setPeriod(p)}
-            className={`px-4 py-1.5 rounded-full text-sm font-medium capitalize transition-colors ${
-              period === p
-                ? "bg-orange-500 text-white"
-                : "bg-white border border-gray-200 text-gray-600 hover:border-orange-300"
-            }`}
+            onClick={() => fetchStats(true)}
+            disabled={refreshing}
+            title={lastUpdated ? `Last updated: ${lastUpdated.toLocaleTimeString()}` : "Refresh"}
+            className="p-2 rounded-lg hover:bg-gray-100 text-gray-400 disabled:opacity-50 transition-colors"
           >
-            {p}
+            <RefreshCw size={15} className={refreshing ? "animate-spin" : ""} />
           </button>
-        ))}
-        <div className="ml-auto flex gap-2">
-          <Button variant="outline" size="sm" onClick={() => handleExport("pdf")}>
-            <FileText size={14} /> Export PDF
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => handleExport("xls")}>
-            <Download size={14} /> Export XLS
-          </Button>
+          <Link to="/pos/select-terminal" className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-brand-500 hover:bg-brand-600 text-white text-sm font-semibold transition-colors">
+            <Monitor size={14} /> Open POS
+          </Link>
+          <Link to="/kitchen" className="flex items-center gap-1.5 px-3 py-2 rounded-lg hover:bg-gray-100 text-sm text-gray-600 font-medium">
+            <ChefHat size={14} /> Kitchen
+          </Link>
+          <span className="text-sm text-gray-500">{user?.name}</span>
+          <button onClick={() => { clearSession(); navigate("/login"); }} className="p-2 rounded-lg hover:bg-gray-100 text-gray-400"><LogOut size={16} /></button>
         </div>
       </div>
 
-      {isLoading ? (
+      {loading ? (
         <div className="flex justify-center py-20"><Spinner size="lg" /></div>
       ) : (
-        <>
-          {/* Metric Cards */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-            <MetricCard
-              title="Total Sales"
-              value={`₹${data?.totalSales ?? 0}`}
-              icon={DollarSign}
-              trend="up"
-              trendValue="+12% vs last period"
-              iconBg="bg-orange-100"
-              iconColor="text-orange-600"
-            />
-            <MetricCard
-              title="Orders"
-              value={data?.totalOrders ?? 0}
-              icon={ShoppingBag}
-              iconBg="bg-blue-100"
-              iconColor="text-blue-600"
-            />
-            <MetricCard
-              title="Avg Order Value"
-              value={`₹${data?.avgOrder ?? 0}`}
-              icon={TrendingUp}
-              iconBg="bg-green-100"
-              iconColor="text-green-600"
-            />
-            <MetricCard
-              title="Customers"
-              value={data?.customers ?? 0}
-              icon={Users}
-              iconBg="bg-purple-100"
-              iconColor="text-purple-600"
-            />
+        <div className="max-w-6xl mx-auto p-6 space-y-6 animate-fadeIn">
+          {/* Metrics */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {metrics.map((m) => (
+              <Card key={m.label} className="p-5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">{m.label}</p>
+                    <p className="text-2xl font-bold text-gray-900 mt-1">{m.value}</p>
+                  </div>
+                  <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${m.color}`}>
+                    <m.icon size={20} />
+                  </div>
+                </div>
+              </Card>
+            ))}
           </div>
 
-          {/* Bar Chart */}
-          <div className="bg-white rounded-xl border border-gray-200 p-5 mb-6">
-            <h2 className="text-sm font-semibold text-gray-700 mb-4">Sales by Hour</h2>
-            <ResponsiveContainer width="100%" height={220}>
-              <BarChart data={data?.chartData ?? []}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                <XAxis dataKey="label" tick={{ fontSize: 12 }} />
-                <YAxis tick={{ fontSize: 12 }} />
-                <Tooltip formatter={(v) => [`₹${v}`, "Sales"]} />
-                <Bar dataKey="sales" fill="#f97316" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+          {/* Top Products & Payment Distribution */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <Card className="p-6">
+              <h3 className="font-bold text-gray-900 mb-4 flex items-center gap-2"><TrendingUp size={16} className="text-brand-500" /> Top Products</h3>
+              {stats?.topProducts?.length > 0 ? (
+                <div className="space-y-3">
+                  {stats.topProducts.slice(0, 8).map((p, i) => (
+                    <div key={p.name || i} className="flex items-center gap-3">
+                      <span className="text-xs font-bold text-gray-400 w-5">{i + 1}</span>
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-gray-800">{p.name || p.productName}</p>
+                        <p className="text-xs text-gray-400">{p.count || p._count} orders</p>
+                      </div>
+                      <span className="text-sm font-semibold text-gray-600">₹{Number(p.revenue || p.totalRevenue || 0).toLocaleString()}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : <p className="text-sm text-gray-400">No data yet</p>}
+            </Card>
+
+            <Card className="p-6">
+              <h3 className="font-bold text-gray-900 mb-4 flex items-center gap-2"><BarChart3 size={16} className="text-brand-500" /> Payment Methods</h3>
+              {stats?.paymentBreakdown?.length > 0 ? (
+                <div className="space-y-3">
+                  {stats.paymentBreakdown.map((p) => (
+                    <div key={p.method} className="flex items-center gap-3">
+                      <Badge color={p.method === "CASH" ? "green" : p.method === "UPI" ? "purple" : "blue"}>{p.method}</Badge>
+                      <div className="flex-1 bg-gray-100 rounded-full h-2">
+                        <div className="bg-brand-400 rounded-full h-2 transition-all" style={{ width: `${Math.min(100, (p.count / (stats.todayOrders || 1)) * 100)}%` }} />
+                      </div>
+                      <span className="text-sm font-semibold text-gray-600">{p.count}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : <p className="text-sm text-gray-400">No data yet</p>}
+            </Card>
           </div>
 
-          {/* Recent Orders Table */}
-          <div className="bg-white rounded-xl border border-gray-200 p-5">
-            <h2 className="text-sm font-semibold text-gray-700 mb-4">Recent Orders</h2>
-            <Table
-              columns={orderColumns}
-              data={data?.recentOrders ?? []}
-              emptyMessage="No orders yet for this period."
-            />
-          </div>
-        </>
+          {/* Quick Actions */}
+          <Card className="p-6">
+            <h3 className="font-bold text-gray-900 mb-4 flex items-center gap-2"><Users size={16} className="text-brand-500" /> Quick Actions</h3>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <Link to="/pos/select-terminal" className="flex flex-col items-center gap-2 p-4 rounded-xl bg-brand-50 hover:bg-brand-100 transition-colors">
+                <Monitor size={20} className="text-brand-600" />
+                <span className="text-xs font-semibold text-brand-700">Open POS</span>
+              </Link>
+              <Link to="/kitchen" className="flex flex-col items-center gap-2 p-4 rounded-xl bg-amber-50 hover:bg-amber-100 transition-colors">
+                <ChefHat size={20} className="text-amber-600" />
+                <span className="text-xs font-semibold text-amber-700">Kitchen</span>
+              </Link>
+              <Link to="/pos/floor" className="flex flex-col items-center gap-2 p-4 rounded-xl bg-emerald-50 hover:bg-emerald-100 transition-colors">
+                <ShoppingCart size={20} className="text-emerald-600" />
+                <span className="text-xs font-semibold text-emerald-700">New Order</span>
+              </Link>
+              <Link to="/" className="flex flex-col items-center gap-2 p-4 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors">
+                <Coffee size={20} className="text-gray-600" />
+                <span className="text-xs font-semibold text-gray-700">Home</span>
+              </Link>
+            </div>
+          </Card>
+
+          {lastUpdated && (
+            <p className="text-center text-xs text-gray-400">
+              Last updated: {lastUpdated.toLocaleTimeString()} · Auto-refreshes every 30s
+            </p>
+          )}
+        </div>
       )}
-    </PageWrapper>
+    </div>
   );
 }

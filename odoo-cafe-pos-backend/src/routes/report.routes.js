@@ -5,8 +5,8 @@ const { authenticate, authorize } = require('../middlewares/auth.middleware');
 
 router.use(authenticate);
 
-// GET /api/reports/dashboard           - today's stats (orders, revenue, top products)
-router.get('/dashboard', ctrl.dashboard);
+// GET /api/reports/dashboard  — ADMIN / MANAGER only
+router.get('/dashboard', authorize('ADMIN', 'MANAGER'), ctrl.dashboard);
 
 // GET /api/reports/sales               - daily sales report (?from=&to=&branchId=)
 router.get('/sales', authorize('ADMIN', 'MANAGER'), ctrl.sales);

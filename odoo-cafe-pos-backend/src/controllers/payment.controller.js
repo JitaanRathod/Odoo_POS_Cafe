@@ -1,5 +1,6 @@
 const paymentService = require('../services/payment.service');
 const { success, created } = require('../utils/response');
+const socketUtil = require('../utils/socket');
 
 const process = async (req, res, next) => {
   try {
@@ -10,6 +11,8 @@ const process = async (req, res, next) => {
     const result = await paymentService.processPayment({
       orderId, method, amount, reference, upiId, splitPayments,
     });
+    // Broadcast to all clients so Dashboard updates in real time
+    socketUtil.emit('payment:completed', { orderId, method, amount });
     return created(res, result);
   } catch (err) { next(err); }
 };
