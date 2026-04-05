@@ -1,35 +1,18 @@
-// src/routes/product.routes.js
 const router = require('express').Router();
-const prisma = require('../config/prisma');
+const productController = require('../controllers/product.controller');
 const { authenticate } = require('../middlewares/auth.middleware');
-const { success } = require('../utils/response');
 
 router.use(authenticate);
 
-// GET /api/products — list products with category info
-router.get('/', async (req, res, next) => {
-  try {
-    const { branchId, categoryId, search, limit = 100, offset = 0 } = req.query;
-    const where = { isActive: true };
-    if (branchId) where.branchId = branchId;
-    if (categoryId) where.categoryId = categoryId;
-    if (search) where.name = { contains: search, mode: 'insensitive' };
+// Product routes
+router.get('/', productController.list);
+router.get('/:id', productController.getById);
+router.post('/', productController.create);
+router.put('/:id', productController.update);
+router.delete('/:id', productController.remove);
 
-    const [products, total] = await Promise.all([
-      prisma.product.findMany({
-        where,
-        include: { category: { select: { id: true, name: true } } },
-        orderBy: { name: 'asc' },
-        take: parseInt(limit),
-        skip: parseInt(offset),
-      }),
-      prisma.product.count({ where }),
-    ]);
-
-    return success(res, { products, total });
-  } catch (err) {
-    next(err);
-  }
-});
+// Category routes
+router.get('/categories/list', productController.getCategories);
+router.post('/categories', productController.createCategory);
 
 module.exports = router;
